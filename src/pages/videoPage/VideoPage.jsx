@@ -1,12 +1,9 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, Typography, Row, Col, Spin, Button } from "antd";
-import {
-  LikeOutlined,
-  DislikeOutlined,
-  ArrowLeftOutlined,
-} from "@ant-design/icons";
+import { ArrowLeftOutlined } from "@ant-design/icons";
 import youtubeAPI from "../../api/youtube";
+import { formatViews } from "../../helpers/formatViews";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -34,7 +31,7 @@ export default function VideoPage() {
 
         const { data: relatedData } = await youtubeAPI.get("/search", {
           params: {
-            part: "snippet",
+            part: "id, snippet",
             relatedToVideoId: id,
             type: "video",
             maxResults: 10,
@@ -141,34 +138,8 @@ export default function VideoPage() {
               <br />
               Дата публикации: {new Date(v.publishedAt).toLocaleDateString()}
               <br />
-              Просмотры: {Number(stats.viewCount).toLocaleString()}
+              Просмотры: {formatViews(Number(stats.viewCount))}
             </Text>
-
-            <div style={{ display: "flex", gap: 12 }}>
-              <Button
-                icon={<LikeOutlined />}
-                style={{
-                  background: "rgba(80,100,255,0.15)",
-                  border: "1px solid #7b8dff",
-                  color: "#e8eaff",
-                  fontWeight: 500,
-                }}
-              >
-                {stats.likeCount}
-              </Button>
-
-              <Button
-                icon={<DislikeOutlined />}
-                style={{
-                  background: "rgba(90,90,150,0.15)",
-                  border: "1px solid #6770c9",
-                  color: "#d7dbff",
-                  fontWeight: 500,
-                }}
-              >
-                Не нравится
-              </Button>
-            </div>
           </div>
 
           <Card

@@ -1,12 +1,10 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "axios";
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL;
-const USERS_URL = import.meta.env.VITE_API_USERS;
-const AUTH_URL = import.meta.env.VITE_API_AUTH;
+import { API_BASE_URL, API_USERS, API_AUTH } from "../../helpers/apiConfig";
 
 const api = axios.create({
-  baseURL: BASE_URL,
+  baseURL: API_BASE_URL,
   headers: { "Content-Type": "application/json" },
 });
 
@@ -14,13 +12,14 @@ export const registerUser = createAsyncThunk(
   "auth/registerUser",
   async (formData, thunkAPI) => {
     try {
-      const { data } = await api.post(`${USERS_URL}/register`, {
+      const { data } = await api.post(`${API_USERS}/register`, {
         username: formData.username,
         email: formData.email,
         password: formData.password,
         gender: formData.gender,
         age: Number(formData.age),
       });
+
       return data;
     } catch (err) {
       return thunkAPI.rejectWithValue(
@@ -34,7 +33,7 @@ export const loginUser = createAsyncThunk(
   "auth/loginUser",
   async (formData, thunkAPI) => {
     try {
-      const { data } = await api.post(`${AUTH_URL}/login`, formData);
+      const { data } = await api.post(`${API_AUTH}/login`, formData);
       return data;
     } catch (err) {
       return thunkAPI.rejectWithValue(
@@ -83,6 +82,7 @@ const authSlice = createSlice({
           state.user = action.payload.user;
         }
       )
+
       .addMatcher(
         (action) => action.type === "auth/registerUser/fulfilled",
         (state) => {

@@ -13,7 +13,7 @@ const savedQueriesSlice = createSlice({
       prepare(data) {
         return {
           payload: {
-            id: nanoid(), 
+            id: nanoid(),
             ...data,
           },
         };

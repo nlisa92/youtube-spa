@@ -1,12 +1,10 @@
 import axios from "axios";
-const API_KEY = import.meta.env.VITE_YOUTUBE_API_KEY;
+import { YT_API_KEY, YT_API_BASE_URL } from "../helpers/apiConfig";
 
 const youtubeAPI = axios.create({
-  baseURL: "https://www.googleapis.com/youtube/v3",
+  baseURL: YT_API_BASE_URL,
   params: {
-    key: API_KEY,
-    part: "snippet",
-    type: "video",
+    key: YT_API_KEY,
   },
 });
 

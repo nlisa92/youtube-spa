@@ -1,8 +1,6 @@
 import { useEffect } from "react";
 import { Form, Input, Select, InputNumber, Button } from "antd";
 
-const { Option } = Select;
-
 const SORT_OPTIONS = [
   "date",
   "rating",
@@ -19,7 +17,7 @@ export default function QueryForm({ initialValues, onSubmit, isEdit }) {
     if (initialValues) {
       form.setFieldsValue(initialValues);
     }
-  }, [initialValues]);
+  }, [initialValues, form]);
 
   return (
     <Form
@@ -42,10 +40,10 @@ export default function QueryForm({ initialValues, onSubmit, isEdit }) {
 
       <Form.Item label="Сортировать по" name="order">
         <Select placeholder="Не выбрано (по умолчанию)">
-          {SORT_OPTIONS.map((o) => (
-            <Option key={o} value={o}>
-              {o}
-            </Option>
+          {SORT_OPTIONS.map((option) => (
+            <Select.Option key={option} value={option}>
+              {option}
+            </Select.Option>
           ))}
         </Select>
       </Form.Item>

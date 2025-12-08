@@ -20,6 +20,7 @@ import {
 import { useDispatch } from "react-redux";
 import { addQuery } from "../../store/slices/savedQueriesSlice";
 import youtubeAPI from "../../api/youtube";
+import { formatViews } from "../../helpers/formatViews";
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -55,14 +56,30 @@ export default function SearchPage() {
 
   const handleSearch = async () => {
     if (!query.trim()) return;
-
     setLoading(true);
     try {
       const { data } = await youtubeAPI.get("/search", {
-        params: { q: query, maxResults: 12 },
+        params: { q: query, maxResults: 12, part: "snippet", type: "video" },
       });
 
-      setVideos(data.items || []);
+      const items = data.items || [];
+      const ids = items.map((v) => v.id.videoId).join(",");
+
+      const { data: statsData } = await youtubeAPI.get("/videos", {
+        params: { id: ids, part: "statistics" },
+      });
+
+      const statsMap = {};
+      statsData.items.forEach((s) => {
+        statsMap[s.id] = s.statistics.viewCount;
+      });
+
+      const enriched = items.map((v) => ({
+        ...v,
+        viewCount: statsMap[v.id.videoId],
+      }));
+
+      setVideos(enriched);
     } catch (err) {
       message.error("Ошибка поиска");
     } finally {
@@ -72,20 +89,36 @@ export default function SearchPage() {
 
   const runSearch = async (q, order, maxResults) => {
     setLoading(true);
-
     try {
       const params = {
         q,
         maxResults: Number(maxResults) || 12,
+        part: "snippet",
+        type: "video",
       };
-
       if (order) params.order = order;
 
       const { data } = await youtubeAPI.get("/search", { params });
+      const items = data.items || [];
+      const ids = items.map((v) => v.id.videoId).join(",");
 
-      setVideos(data.items || []);
+      const { data: statsData } = await youtubeAPI.get("/videos", {
+        params: { id: ids, part: "statistics" },
+      });
+
+      const statsMap = {};
+      statsData.items.forEach((s) => {
+        statsMap[s.id] = s.statistics.viewCount;
+      });
+
+      const enriched = items.map((v) => ({
+        ...v,
+        viewCount: statsMap[v.id.videoId],
+      }));
+
+      setVideos(enriched);
     } catch {
-      message.error("Ошибка при выполнении сохранённого запрос");
+      message.error("Ошибка при выполнении сохранённого запроса");
     } finally {
       setLoading(false);
     }
@@ -172,34 +205,50 @@ export default function SearchPage() {
 
       {viewMode === "grid" ? (
         <Row gutter={[16, 16]}>
-          {videos.map((video) => (
-            <Col key={video.id.videoId} xs={24} sm={12} md={8} lg={6}>
-              <Card
-                hoverable
-                onClick={() => navigate(`/watch/${video.id.videoId}`)}
-                cover={
-                  <img
-                    src={video.snippet.thumbnails.medium.url}
-                    alt={video.snippet.title}
-                    style={{ borderRadius: 10, width: "100%", height: "100%" }}
-                  />
-                }
-                style={{
-                  borderRadius: 12,
-                  background: "rgba(25,25,55,0.7)",
-                  border: "1px solid #4349c7",
-                }}
-              >
-                <Card.Meta
-                  title={
-                    <Text style={{ color: "#fff", fontWeight: 600 }}>
-                      {video.snippet.title}
-                    </Text>
+          {videos.map((video) => {
+            console.log("GRID:", video.snippet.title, video.viewCount); // 👈 проверка
+            return (
+              <Col key={video.id.videoId} xs={24} sm={12} md={8} lg={6}>
+                <Card
+                  hoverable
+                  onClick={() => navigate(`/watch/${video.id.videoId}`)}
+                  cover={
+                    <img
+                      src={video.snippet.thumbnails.medium.url}
+                      alt={video.snippet.title}
+                      style={{
+                        borderRadius: 10,
+                        width: "100%",
+                        height: "100%",
+                      }}
+                    />
                   }
-                />
-              </Card>
-            </Col>
-          ))}
+                  style={{
+                    borderRadius: 12,
+                    background: "rgba(25,25,55,0.7)",
+                    border: "1px solid #4349c7",
+                  }}
+                >
+                  <Card.Meta
+                    title={
+                      <Text style={{ color: "#fff", fontWeight: 600 }}>
+                        {video.snippet.title}
+                      </Text>
+                    }
+                    description={
+                      <Text style={{ color: "#c7caff" }}>
+                        👁{" "}
+                        {video.viewCount
+                          ? formatViews(Number(video.viewCount))
+                          : "—"}{" "}
+                        просмотров
+                      </Text>
+                    }
+                  />
+                </Card>
+              </Col>
+            );
+          })}
         </Row>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -230,9 +279,19 @@ export default function SearchPage() {
                   </Text>
                 }
                 description={
-                  <Text style={{ color: "#c7caff" }}>
-                    {video.snippet.description}
-                  </Text>
+                  <>
+                    <Text style={{ color: "#c7caff" }}>
+                      {video.snippet.description}
+                    </Text>
+                    <br />
+                    <Text style={{ color: "#9fa2ff" }}>
+                      👁{" "}
+                      {video.viewCount
+                        ? formatViews(Number(video.viewCount))
+                        : "—"}{" "}
+                      просмотров
+                    </Text>
+                  </>
                 }
               />
             </Card>
@@ -255,7 +314,7 @@ export default function SearchPage() {
             name: "",
             order: "",
             maxResults: 12,
-            query: query, // 🔥 фиксируем изначально
+            query: query,
           }}
           onFinish={(values) => {
             dispatch(addQuery(values));
