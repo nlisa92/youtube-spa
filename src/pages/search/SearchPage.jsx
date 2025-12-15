@@ -1,128 +1,55 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import {
-  Input,
-  Card,
-  Row,
-  Col,
-  Typography,
-  Button,
-  message,
-  Modal,
-  Form,
-  Select,
-} from "antd";
-import {
-  AppstoreOutlined,
-  UnorderedListOutlined,
-  HeartOutlined,
-} from "@ant-design/icons";
-import { useDispatch } from "react-redux";
+import { Typography, message, Form } from "antd";
+import { useSelector, useDispatch } from "react-redux";
 import { addQuery } from "../../store/slices/savedQueriesSlice";
-import youtubeAPI from "../../api/youtube";
+import {
+  setQuery,
+  setViewMode,
+} from "../../store/slices/searchSlice";
+
+import useYouTubeSearch from "./hooks/useYouTubeSearch";
+import useSavedQueryLoader from "./hooks/useSavedQueryLoader";
+
+import SearchHeader from "./components/SearchHeader";
+import VideoGrid from "./components/VideoGrid";
+import VideoList from "./components/VideoList";
+import SaveQueryModal from "./components/SaveQueryModal";
+
 import { formatViews } from "../../helpers/formatViews";
 
 const { Title, Text } = Typography;
-const { Search } = Input;
 
 export default function SearchPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const dispatch = useDispatch();
 
-  const [query, setQuery] = useState("");
-  const [videos, setVideos] = useState([]);
-  const [viewMode, setViewMode] = useState("grid");
-  const [loading, setLoading] = useState(false);
+  const query = useSelector((state) => state.search.query);
+  const viewMode = useSelector((state) => state.search.viewMode);
+  const videos = useSelector((state) => state.search.videos);
+  const [modalOpen, setModalOpen] = useState(false);
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [form] = Form.useForm();
 
+  const savedQuery = useSavedQueryLoader(location);
+  const { loading, handleSearch, runSearch } = useYouTubeSearch(query, dispatch);
+
   useEffect(() => {
-    if (location.state?.savedQuery) {
-      const q = location.state.savedQuery;
-
+    if (savedQuery) {
       const queryString =
-        typeof q.query === "string" ? q.query : JSON.stringify(q.query);
+        typeof savedQuery.query === "string"
+          ? savedQuery.query
+          : JSON.stringify(savedQuery.query);
+      dispatch(setQuery(queryString));
 
-      setQuery(queryString);
-      runSearch(queryString, q.order, q.maxResults);
+      runSearch(queryString, savedQuery.order, savedQuery.maxResults);
     }
-  }, [location.state]);
+  }, [savedQuery, runSearch, dispatch]);
 
   useEffect(() => {
     form.setFieldsValue({ query });
   }, [query]);
-
-  const handleSearch = async () => {
-    if (!query.trim()) return;
-    setLoading(true);
-    try {
-      const { data } = await youtubeAPI.get("/search", {
-        params: { q: query, maxResults: 12, part: "snippet", type: "video" },
-      });
-
-      const items = data.items || [];
-      const ids = items.map((v) => v.id.videoId).join(",");
-
-      const { data: statsData } = await youtubeAPI.get("/videos", {
-        params: { id: ids, part: "statistics" },
-      });
-
-      const statsMap = {};
-      statsData.items.forEach((s) => {
-        statsMap[s.id] = s.statistics.viewCount;
-      });
-
-      const enriched = items.map((v) => ({
-        ...v,
-        viewCount: statsMap[v.id.videoId],
-      }));
-
-      setVideos(enriched);
-    } catch (err) {
-      message.error("Ошибка поиска");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const runSearch = async (q, order, maxResults) => {
-    setLoading(true);
-    try {
-      const params = {
-        q,
-        maxResults: Number(maxResults) || 12,
-        part: "snippet",
-        type: "video",
-      };
-      if (order) params.order = order;
-
-      const { data } = await youtubeAPI.get("/search", { params });
-      const items = data.items || [];
-      const ids = items.map((v) => v.id.videoId).join(",");
-
-      const { data: statsData } = await youtubeAPI.get("/videos", {
-        params: { id: ids, part: "statistics" },
-      });
-
-      const statsMap = {};
-      statsData.items.forEach((s) => {
-        statsMap[s.id] = s.statistics.viewCount;
-      });
-
-      const enriched = items.map((v) => ({
-        ...v,
-        viewCount: statsMap[v.id.videoId],
-      }));
-
-      setVideos(enriched);
-    } catch {
-      message.error("Ошибка при выполнении сохранённого запроса");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <>
@@ -138,57 +65,15 @@ export default function SearchPage() {
         Поиск видео 🚀
       </Title>
 
-      <div
-        style={{
-          display: "flex",
-          gap: 12,
-          flexWrap: "wrap",
-          justifyContent: "center",
-          marginBottom: 24,
-        }}
-      >
-        <Search
-          placeholder="search"
-          enterButton="Найти"
-          size="large"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onSearch={handleSearch}
-          loading={loading}
-          style={{ maxWidth: 500, width: "100%" }}
-          suffix={
-            <HeartOutlined
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsModalOpen(true);
-              }}
-              style={{
-                color: "#ff4d6d",
-                fontSize: 22,
-                cursor: "pointer",
-                padding: "0 6px",
-                transition: "0.2s",
-              }}
-              onMouseOver={(e) =>
-                (e.currentTarget.style.transform = "scale(1.2)")
-              }
-              onMouseOut={(e) => (e.currentTarget.style.transform = "scale(1)")}
-            />
-          }
-        />
-
-        <Button
-          icon={<UnorderedListOutlined />}
-          type={viewMode === "list" ? "primary" : "default"}
-          onClick={() => setViewMode("list")}
-        />
-
-        <Button
-          icon={<AppstoreOutlined />}
-          type={viewMode === "grid" ? "primary" : "default"}
-          onClick={() => setViewMode("grid")}
-        />
-      </div>
+      <SearchHeader
+        query={query}
+        setQuery={(q) => dispatch(setQuery(q))}
+        loading={loading}
+        onSearch={handleSearch}
+        openSaveModal={() => setModalOpen(true)}
+        viewMode={viewMode}
+        setViewMode={(mode) => dispatch(setViewMode(mode))}
+      />
 
       {videos.length > 0 && (
         <Text
@@ -204,152 +89,20 @@ export default function SearchPage() {
       )}
 
       {viewMode === "grid" ? (
-        <Row gutter={[16, 16]}>
-          {videos.map((video) => {
-            console.log("GRID:", video.snippet.title, video.viewCount); // 👈 проверка
-            return (
-              <Col key={video.id.videoId} xs={24} sm={12} md={8} lg={6}>
-                <Card
-                  hoverable
-                  onClick={() => navigate(`/watch/${video.id.videoId}`)}
-                  cover={
-                    <img
-                      src={video.snippet.thumbnails.medium.url}
-                      alt={video.snippet.title}
-                      style={{
-                        borderRadius: 10,
-                        width: "100%",
-                        height: "100%",
-                      }}
-                    />
-                  }
-                  style={{
-                    borderRadius: 12,
-                    background: "rgba(25,25,55,0.7)",
-                    border: "1px solid #4349c7",
-                  }}
-                >
-                  <Card.Meta
-                    title={
-                      <Text style={{ color: "#fff", fontWeight: 600 }}>
-                        {video.snippet.title}
-                      </Text>
-                    }
-                    description={
-                      <Text style={{ color: "#c7caff" }}>
-                        👁{" "}
-                        {video.viewCount
-                          ? formatViews(Number(video.viewCount))
-                          : "—"}{" "}
-                        просмотров
-                      </Text>
-                    }
-                  />
-                </Card>
-              </Col>
-            );
-          })}
-        </Row>
+        <VideoGrid videos={videos} navigate={navigate} formatViews={formatViews} />
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {videos.map((video) => (
-            <Card
-              key={video.id.videoId}
-              hoverable
-              onClick={() => navigate(`/watch/${video.id.videoId}`)}
-              style={{
-                display: "flex",
-                borderRadius: 12,
-                background: "rgba(25,25,55,0.7)",
-                border: "1px solid #4349c7",
-                overflow: "hidden",
-              }}
-            >
-              <img
-                src={video.snippet.thumbnails.medium.url}
-                alt={video.snippet.title}
-                width={200}
-                style={{ marginRight: 16 }}
-              />
-
-              <Card.Meta
-                title={
-                  <Text style={{ color: "#fff", fontWeight: 600 }}>
-                    {video.snippet.title}
-                  </Text>
-                }
-                description={
-                  <>
-                    <Text style={{ color: "#c7caff" }}>
-                      {video.snippet.description}
-                    </Text>
-                    <br />
-                    <Text style={{ color: "#9fa2ff" }}>
-                      👁{" "}
-                      {video.viewCount
-                        ? formatViews(Number(video.viewCount))
-                        : "—"}{" "}
-                      просмотров
-                    </Text>
-                  </>
-                }
-              />
-            </Card>
-          ))}
-        </div>
+        <VideoList videos={videos} navigate={navigate} formatViews={formatViews} />
       )}
 
-      <Modal
-        title="Сохранить запрос"
-        open={isModalOpen}
-        onCancel={() => setIsModalOpen(false)}
-        onOk={() => form.submit()}
-        okText="Сохранить"
-        cancelText="Отмена"
-      >
-        <Form
-          form={form}
-          layout="vertical"
-          initialValues={{
-            name: "",
-            order: "",
-            maxResults: 12,
-            query: query,
-          }}
-          onFinish={(values) => {
-            dispatch(addQuery(values));
-            setIsModalOpen(false);
-            message.success("Запрос сохранён!");
-          }}
-        >
-          <Form.Item
-            label="Название"
-            name="name"
-            rules={[{ required: true, message: "Введите название" }]}
-          >
-            <Input placeholder="Введите название запроса" />
-          </Form.Item>
-
-          <Form.Item label="Запрос" name="query">
-            <Input disabled />
-          </Form.Item>
-
-          <Form.Item label="Сортировка" name="order">
-            <Select
-              options={[
-                { value: "", label: "Без сортировки" },
-                { value: "date", label: "Дата" },
-                { value: "rating", label: "Рейтинг" },
-                { value: "viewCount", label: "Просмотры" },
-              ]}
-            />
-          </Form.Item>
-
-          <Form.Item label="Максимум видео" name="maxResults">
-            <Input type="number" />
-          </Form.Item>
-        </Form>
-      </Modal>
+      <SaveQueryModal
+        open={modalOpen}
+        close={() => setModalOpen(false)}
+        form={form}
+        query={query}
+        dispatch={dispatch}
+        addQuery={addQuery}
+        message={message}
+      />
     </>
   );
 }
